@@ -27,10 +27,17 @@ def register_dose_to_film(
     pixel_spacing_mm: tuple[float, float],
     mutual_information_bins: int = 50,
     sampling_percentage: float = 0.2,
+    margin_mm: float = 0.0,
 ) -> RegistrationResult:
     """
     Register a resampled DICOM dose plane to the film using mutual information.
     The transform is rigid (translation + rotation) in 2D.
+
+    Parameters
+    ----------
+    margin_mm : float
+        Additional margin to crop from all edges after registration, in mm.
+        Useful for excluding high-gradient penumbra regions.
     """
     film_gray = _to_grayscale(film_rgb).astype(np.float32)
     dose_float = dose_resampled.astype(np.float32)
@@ -46,7 +53,7 @@ def register_dose_to_film(
     initial_transform = sitk.CenteredTransformInitializer(
         film_img,
         dose_img,
-        sitk.VersorRigid2DTransform(),
+        sitk.Euler2DTransform(),  # 2D rigid transform: rotation + translation
         sitk.CenteredTransformInitializerFilter.GEOMETRY,
     )
 
@@ -84,8 +91,20 @@ def register_dose_to_film(
     row_inds = np.where(row_any)[0]
     col_inds = np.where(col_any)[0]
 
-    row_slice = slice(row_inds.min(), row_inds.max() + 1)
-    col_slice = slice(col_inds.min(), col_inds.max() + 1)
+    row_start, row_end = row_inds.min(), row_inds.max() + 1
+    col_start, col_end = col_inds.min(), col_inds.max() + 1
+
+    # Apply additional margin cropping if specified
+    if margin_mm > 0:
+        margin_rows = int(np.ceil(margin_mm / pixel_spacing_mm[0]))
+        margin_cols = int(np.ceil(margin_mm / pixel_spacing_mm[1]))
+        row_start = min(row_start + margin_rows, row_end - 1)
+        row_end = max(row_end - margin_rows, row_start + 1)
+        col_start = min(col_start + margin_cols, col_end - 1)
+        col_end = max(col_end - margin_cols, col_start + 1)
+
+    row_slice = slice(row_start, row_end)
+    col_slice = slice(col_start, col_end)
 
     cropped_dose = aligned_dose[row_slice, col_slice]
     cropped_film = film_rgb[row_slice, col_slice]
