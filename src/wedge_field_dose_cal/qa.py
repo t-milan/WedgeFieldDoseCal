@@ -66,7 +66,7 @@ def plot_calibration_curves(
     """
     Plot pixel value vs dose for each RGB channel.
 
-    Shows the calibration data as scatter plots with bi-exponential fits overlaid.
+    Shows the calibration data as scatter plots with smoothed linear fits overlaid.
     """
     if not calibrator.pixels or not calibrator.doses:
         raise RuntimeError("Calibrator has no data to plot")
@@ -96,11 +96,22 @@ def plot_calibration_curves(
     for i, (ax, name, color) in enumerate(zip(axes, channel_names, channel_colors)):
         ax.scatter(y_plot, X_plot[:, i], alpha=0.1, s=1, c=color, label="Data")
 
-        # Overlay fitted bi-exponential curve if available
-        if calibrator.channel_models is not None and calibrator.dose_range is not None:
+        # Overlay fitted smoothing spline if available
+        if calibrator.channel_splines is not None and calibrator.dose_range is not None:
             dose_curve = np.linspace(calibrator.dose_range[0], calibrator.dose_range[1], 200)
-            pixel_curve = calibrator.channel_models[i].predict_pixel(dose_curve)
-            ax.plot(dose_curve, pixel_curve, "k-", linewidth=2, label="Bi-exp fit")
+            pixel_curve = calibrator.channel_splines[i].predict_pixel(dose_curve)
+            ax.plot(dose_curve, pixel_curve, "k-", linewidth=2, label="Smoothed fit")
+
+        if calibrator.bin_centers is not None and calibrator.bin_means is not None:
+            ax.plot(
+                calibrator.bin_centers,
+                calibrator.bin_means[:, i],
+                "o",
+                markersize=3,
+                color="black",
+                alpha=0.6,
+                label="Bin means",
+            )
 
         ax.set_xlabel("Dose (Gy)")
         ax.set_ylabel("Pixel Value")
@@ -307,7 +318,7 @@ def plot_gamma_analysis(
 
 def print_calibration_summary(calibrator: MultichannelDoseCalibrator) -> None:
     """Print a summary of calibration statistics."""
-    if calibrator.channel_models is None:
+    if calibrator.channel_splines is None or calibrator.dose_range is None:
         print("Calibrator not fitted yet")
         return
 
@@ -321,15 +332,19 @@ def print_calibration_summary(calibrator: MultichannelDoseCalibrator) -> None:
     print(f"Total pixels: {len(y):,}")
     print(f"Valid pixels: {np.sum(valid_mask):,} ({100*np.sum(valid_mask)/len(y):.1f}%)")
     print(f"Dose range: [{calibrator.dose_range[0]:.3f}, {calibrator.dose_range[1]:.3f}] Gy")
+    print(f"Calibration bins: {calibrator.num_bins}")
     print(f"Covariance bins: {calibrator.num_covariance_bins}")
+    smoothing = "auto" if calibrator.smoothing_factor is None else calibrator.smoothing_factor
+    print(f"Smoothing factor: {smoothing}")
     print()
 
-    print("Bi-Exponential Model: pixel = a·exp(-dose·b) + c·exp(-dose·d) + e")
-    print("-" * 60)
     channel_names = ["Red", "Green", "Blue"]
-    for name, model in zip(channel_names, calibrator.channel_models):
-        print(f"  {name:5s}: a={model.a:8.1f}, b={model.b:.4f}, "
-              f"c={model.c:8.1f}, d={model.d:.4f}, e={model.e:8.1f}")
+    print("Spline pixel ranges (dose min -> max):")
+    print("-" * 60)
+    for name, spline in zip(channel_names, calibrator.channel_splines):
+        low = float(spline.predict_pixel(np.array([calibrator.dose_range[0]])).squeeze())
+        high = float(spline.predict_pixel(np.array([calibrator.dose_range[1]])).squeeze())
+        print(f"  {name:5s}: {low:8.1f} -> {high:8.1f}")
 
     # Compute and show fit quality (RMSE)
     print()
@@ -337,7 +352,7 @@ def print_calibration_summary(calibrator: MultichannelDoseCalibrator) -> None:
     print("-" * 60)
     pixels_valid = X[valid_mask]
     doses_valid = y[valid_mask]
-    for i, (name, model) in enumerate(zip(channel_names, calibrator.channel_models)):
-        predicted = model.predict_pixel(doses_valid)
-        rmse = np.sqrt(np.mean((pixels_valid[:, i] - predicted) ** 2))
+    predicted_pixels = calibrator.get_expected_pixel(doses_valid)
+    for i, name in enumerate(channel_names):
+        rmse = np.sqrt(np.mean((pixels_valid[:, i] - predicted_pixels[:, i]) ** 2))
         print(f"  {name:5s}: RMSE = {rmse:.1f} pixel values")

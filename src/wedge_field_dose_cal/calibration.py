@@ -50,12 +50,14 @@ class MultichannelDoseCalibrator:
     Film dose calibrator using smoothed linear interpolation.
 
     Bins calibration data by dose, computes mean pixel values per bin,
-    then fits a smoothing spline through the bin means for each RGB channel.
-    Prediction inverts the spline via lookup table interpolation.
+    then fits a smoothing spline (linear segments with smoothing constraint)
+    through the bin means for each RGB channel. Prediction inverts the spline
+    via lookup table interpolation.
     """
 
     num_bins: int = 50
     smoothing_factor: float | None = None  # None = automatic, higher = smoother
+    num_covariance_bins: int = 24
 
     # Stored calibration data
     pixels: List[np.ndarray] = field(default_factory=list)
@@ -143,7 +145,7 @@ class MultichannelDoseCalibrator:
             self.bin_centers,
             self.bin_means[:, channel],
             s=s,
-            k=3,  # cubic spline
+            k=1,  # linear segments with smoothing
         )
 
         return ChannelSpline(
@@ -160,7 +162,7 @@ class MultichannelDoseCalibrator:
 
         # Bin by dose and compute covariance in each bin
         dose_min, dose_max = self.dose_range
-        num_cov_bins = min(24, self.num_bins)
+        num_cov_bins = min(self.num_covariance_bins, self.num_bins)
         bins = np.linspace(dose_min, dose_max, num_cov_bins + 1)
         bin_indices = np.clip(np.digitize(doses, bins) - 1, 0, num_cov_bins - 1)
         centers = 0.5 * (bins[:-1] + bins[1:])
