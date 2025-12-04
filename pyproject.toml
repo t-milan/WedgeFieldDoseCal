@@ -1,0 +1,33 @@
+[project]
+name = "wedge-field-dose-cal"
+version = "0.1.0"
+description = "Multichannel film dose calibration and registration for EDW fields"
+authors = [{name = "Tom", email = "tom@tom.tom"}]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "pydicom",
+    "tifffile",
+    "scipy",
+    "scikit-image",
+    "scikit-learn",
+    "SimpleITK",
+    "pandas",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

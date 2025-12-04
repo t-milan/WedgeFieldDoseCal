@@ -1,0 +1,12 @@
+numpy
+pydicom
+tifffile
+scipy
+scikit-image
+scikit-learn
+SimpleITK
+pandas
+matplotlib
+
+[dev]
+pytest

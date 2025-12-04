@@ -1,3 +1,22 @@
+Metadata-Version: 2.4
+Name: wedge-field-dose-cal
+Version: 0.1.0
+Summary: Multichannel film dose calibration and registration for EDW fields
+Author-email: Tom <tom@tom.tom>
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: pydicom
+Requires-Dist: tifffile
+Requires-Dist: scipy
+Requires-Dist: scikit-image
+Requires-Dist: scikit-learn
+Requires-Dist: SimpleITK
+Requires-Dist: pandas
+Requires-Dist: matplotlib
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+
 # WedgeFieldDoseCal
 
 Multichannel dose calibration based on scans of EDW Wedge fields.
